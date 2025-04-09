@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test de Mecanografía por Dictado</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .correct { color: green; font-weight: bold; }
+        .incorrect { color: red; }
+        .stats { font-size: 1.2em; font-weight: bold; }
+        .feedback-item { margin-bottom: 5px; padding: 10px; border-radius: 5px; }
+        .oracion-correcta { background-color: #e8f5e9; }
+        .oracion-incorrecta { background-color: #ffebee; }
+        .match-info { font-size: 0.9em; color: #666; }
+        .typo { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title text-center">Test de Mecanografía Flexible</h5>
+                <p class="text-center text-muted">Escribe las 10 oraciones dictadas (puedes cometer pequeños errores)</p>
+
+                <!-- Formulario del test -->
+                <form id="testForm" onsubmit="event.preventDefault(); terminarTest();">
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label">Nombre:</label>
+                        <input type="text" class="form-control" id="nombre" name="nombre" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="apellido" class="form-label">Apellido:</label>
+                        <input type="text" class="form-control" id="apellido" name="apellido" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="textoUsuario" class="form-label">Escribe las 10 oraciones:</label>
+                        <textarea class="form-control" id="textoUsuario" rows="10" 
+                                  onpaste="return false" onkeydown="bloquearCtrlV(event)"
+                                  placeholder="Ejemplo: llueve fuerte, corre rapido, saltalato..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Enviar</button>
+                </form>
+
+                <!-- Resultados -->
+                <div id="resultado" class="mt-3"></div>
+                <div id="contadorPalabras" class="text-center mt-2 stats">Oraciones correctas: 0/10 | Puntuación: 0</div>
+                <div id="feedback" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const oracionesDictado = [
+            "Llueve fuerte",
+            "Corre rápido",
+            "Estudia mucho",
+            "Salta alto",
+            "Piensa bien",
+            "Come sano",
+            "Escribe claro",
+            "Lee despacio",
+            "Sigue adelante",
+            "Habla fuerte"
+        ];
+        let startTime = null;
+
+        // Inicializar temporizador
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById("textoUsuario").addEventListener('keydown', function() {
+                if (!startTime && this.value.length === 0) {
+                    startTime = new Date();
+                }
+            });
+        });
+
+        // Función mejorada para normalizar texto
+        function normalizarTexto(texto) {
+            return texto.toLowerCase()
+                      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quitar acentos
+                      .replace(/[.,;:!?¿¡()\n\r]/g, ""); // quitar signos
+        }
+
+        // Función para detectar palabras unidas (como "saltalato")
+        function separarPalabrasUnidas(texto) {
+            // Diccionario de palabras conocidas
+            const palabrasConocidas = ["llueve", "fuerte", "corre", "rapido", "estudia", 
+                                     "mucho", "salta", "alto", "piensa", "bien", 
+                                     "come", "sano", "escribe", "claro", "lee", 
+                                     "despacio", "sigue", "adelante", "habla"];
+            
+            const palabras = texto.split(/\s+/);
+            const resultado = [];
+            
+            palabras.forEach(palabra => {
+                // Si la palabra es muy larga, intentar dividirla
+                if (palabra.length > 6) {
+                    let encontrado = false;
+                    
+                    // Buscar palabras conocidas dentro de la palabra unida
+                    for (let i = 0; i < palabrasConocidas.length; i++) {
+                        const conocida = palabrasConocidas[i];
+                        if (palabra.includes(conocida)) {
+                            const pos = palabra.indexOf(conocida);
+                            const parte1 = palabra.substring(0, pos);
+                            const parte2 = palabra.substring(pos + conocida.length);
+                            
+                            if (parte1 && parte2) {
+                                resultado.push(parte1);
+                                resultado.push(conocida);
+                                resultado.push(parte2);
+                                encontrado = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!encontrado) {
+                        resultado.push(palabra);
+                    }
+                } else {
+                    resultado.push(palabra);
+                }
+            });
+            
+            return resultado.join(" ");
+        }
+
+        // Función para extraer oraciones del texto
+        function extraerOraciones(texto) {
+            // Primero separar palabras unidas incorrectamente
+            const textoCorregido = separarPalabrasUnidas(texto);
+            
+            // Dividir por espacios, saltos de línea o signos de puntuación
+            const partes = textoCorregido.split(/[\s.,;:!?¿¡\n\r]+/).filter(p => p.length > 0);
+            
+            // Crear pares de palabras consecutivas
+            const oraciones = [];
+            for (let i = 0; i < partes.length; i += 2) {
+                if (partes[i + 1]) {
+                    oraciones.push(partes[i] + " " + partes[i + 1]);
+                } else {
+                    oraciones.push(partes[i]);
+                }
+            }
+            
+            return oraciones;
+        }
+
+        // Función mejorada para calcular similitud entre oraciones
+        function calcularSimilitud(oracion1, oracion2) {
+            const normalizada1 = normalizarTexto(oracion1);
+            const normalizada2 = normalizarTexto(oracion2);
+            
+            // Coincidencia exacta después de normalizar
+            if (normalizada1 === normalizada2) return 1.0;
+            
+            const palabras1 = normalizada1.split(/\s+/);
+            const palabras2 = normalizada2.split(/\s+/);
+            
+            // Si tienen distinto número de palabras, similitud 0
+            if (palabras1.length !== palabras2.length) return 0.0;
+            
+            // Calcular similitud para cada par de palabras
+            let similitudTotal = 0;
+            for (let i = 0; i < palabras1.length; i++) {
+                const p1 = palabras1[i];
+                const p2 = palabras2[i];
+                
+                // Coincidencia exacta
+                if (p1 === p2) {
+                    similitudTotal += 1;
+                    continue;
+                }
+                
+                // Una palabra contiene a la otra ("rapido" vs "rápido")
+                if (p1.includes(p2) || p2.includes(p1)) {
+                    similitudTotal += 0.9;
+                    continue;
+                }
+                
+                // Calcular similitud de caracteres
+                const maxLen = Math.max(p1.length, p2.length);
+                let coincidencias = 0;
+                for (let j = 0; j < maxLen; j++) {
+                    if (p1[j] === p2[j]) coincidencias++;
+                }
+                similitudTotal += coincidencias / maxLen;
+            }
+            
+            return similitudTotal / palabras1.length;
+        }
+
+        // Bloquear Ctrl+V
+        function bloquearCtrlV(e) {
+            if (e.ctrlKey && e.key === 'v') {
+                e.preventDefault();
+                alert('No se permite pegar texto en este campo.');
+            }
+        }
+
+        // Mostrar feedback detallado
+        function mostrarFeedback(resultados) {
+            const feedbackDiv = document.getElementById('feedback');
+            feedbackDiv.innerHTML = '';
+            
+            const container = document.createElement('div');
+            container.className = 'p-3 bg-light rounded';
+            
+            const titulo = document.createElement('h5');
+            titulo.textContent = 'Resultado detallado:';
+            titulo.className = 'text-center mb-3';
+            container.appendChild(titulo);
+            
+            resultados.forEach((resultado, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `feedback-item ${resultado.correcta ? 'oracion-correcta' : 'oracion-incorrecta'}`;
+                
+                const oracionDiv = document.createElement('div');
+                oracionDiv.innerHTML = `<strong>Oración ${index+1} esperada:</strong> ${resultado.esperada}`;
+                itemDiv.appendChild(oracionDiv);
+                
+                if (resultado.escrita) {
+                    const escritaDiv = document.createElement('div');
+                    escritaDiv.innerHTML = `<strong>Escrita:</strong> <span class="${resultado.tieneError ? 'typo' : ''}">${resultado.escrita}</span>`;
+                    itemDiv.appendChild(escritaDiv);
+                    
+                    const similitudDiv = document.createElement('div');
+                    similitudDiv.innerHTML = `<strong>Similitud:</strong> ${(resultado.similitud * 100).toFixed(1)}%`;
+                    itemDiv.appendChild(similitudDiv);
+                    
+                    if (resultado.mensajeError) {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'text-danger small';
+                        errorDiv.textContent = resultado.mensajeError;
+                        itemDiv.appendChild(errorDiv);
+                    }
+                } else {
+                    const noEscritaDiv = document.createElement('div');
+                    noEscritaDiv.className = 'text-muted';
+                    noEscritaDiv.textContent = "(No escrita)";
+                    itemDiv.appendChild(noEscritaDiv);
+                }
+                
+                container.appendChild(itemDiv);
+            });
+            
+            feedbackDiv.appendChild(container);
+        }
+
+        // Función principal para evaluar las oraciones
+        function evaluarOraciones(textoUsuario) {
+            // Extraer oraciones del texto escrito
+            const oracionesEscritas = extraerOraciones(textoUsuario);
+            
+            // Preparar estructura para resultados
+            const resultados = oracionesDictado.map(esperada => ({
+                esperada,
+                escrita: null,
+                similitud: 0,
+                correcta: false,
+                tieneError: false,
+                mensajeError: null
+            }));
+            
+            // Buscar coincidencias para cada oración esperada
+            const oracionesDisponibles = [...oracionesEscritas];
+            let oracionesCorrectas = 0;
+            
+            oracionesDictado.forEach((esperada, i) => {
+                let mejorSimilitud = 0;
+                let mejorIndice = -1;
+                
+                // Buscar la mejor coincidencia entre las oraciones escritas
+                oracionesDisponibles.forEach((escrita, j) => {
+                    const similitud = calcularSimilitud(esperada, escrita);
+                    if (similitud > mejorSimilitud) {
+                        mejorSimilitud = similitud;
+                        mejorIndice = j;
+                    }
+                });
+                
+                // Si encontramos una coincidencia válida (>= 70% de similitud)
+                if (mejorIndice !== -1 && mejorSimilitud >= 0.7) {
+                    const escrita = oracionesDisponibles[mejorIndice];
+                    resultados[i].escrita = escrita;
+                    resultados[i].similitud = mejorSimilitud;
+                    resultados[i].correcta = true;
+                    
+                    // Marcar si tiene errores menores (similitud < 1)
+                    if (mejorSimilitud < 1) {
+                        resultados[i].tieneError = true;
+                        resultados[i].mensajeError = "Pequeño error detectado, pero se acepta";
+                    }
+                    
+                    oracionesCorrectas++;
+                    oracionesDisponibles.splice(mejorIndice, 1); // Evitar reusar la misma oración
+                }
+            });
+            
+            // Procesar oraciones escritas no asignadas (errores)
+            oracionesDisponibles.forEach(escrita => {
+                // Buscar la oración esperada más parecida (aunque no alcance el umbral)
+                let mejorSimilitud = 0;
+                let mejorIndice = -1;
+                
+                oracionesDictado.forEach((esperada, i) => {
+                    if (!resultados[i].escrita) { // Solo si no tiene asignación
+                        const similitud = calcularSimilitud(esperada, escrita);
+                        if (similitud > mejorSimilitud) {
+                            mejorSimilitud = similitud;
+                            mejorIndice = i;
+                        }
+                    }
+                });
+                
+                if (mejorIndice !== -1) {
+                    resultados[mejorIndice].escrita = escrita;
+                    resultados[mejorIndice].similitud = mejorSimilitud;
+                    resultados[mejorIndice].mensajeError = "No coincide suficientemente";
+                }
+            });
+            
+            return {
+                resultados,
+                oracionesCorrectas
+            };
+        }
+
+        // Guardar en Google Sheets
+        async function guardarEnHoja(oracionesCorrectas, puntuacion) {
+            const nombre = document.getElementById('nombre').value.trim();
+            const apellido = document.getElementById('apellido').value.trim();
+
+            if (!nombre || !apellido) {
+                alert('Por favor completa tu nombre y apellido');
+                return false;
+            }
+
+            const data = {
+                nombre: nombre,
+                apellido: apellido,
+                oracionesCorrectas: oracionesCorrectas,
+                puntuacion: puntuacion,
+                fecha: new Date().toISOString()
+            };
+
+            try {
+                const scriptUrl = 'https://script.google.com/macros/s/AKfycbxHSWrRABwVkzmjjRtqLfXXdHd2TkhjRX8YBUjyuZWSXGbvhwEteQYXydQOASjQWALe/exec';
+
+                await fetch(scriptUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                    mode: 'no-cors'
+                });
+
+                return true;
+            } catch (error) {
+                console.error('Error al guardar:', error);
+                return false;
+            }
+        }
+
+        // Evaluar texto al presionar enviar
+        async function terminarTest() {
+            const textoUsuario = document.getElementById('textoUsuario').value.trim();
+            
+            if (!textoUsuario) {
+                alert('Por favor escribe las oraciones dictadas antes de enviar');
+                return;
+            }
+            
+            // Evaluar las oraciones
+            const { resultados, oracionesCorrectas } = evaluarOraciones(textoUsuario);
+            const puntuacionFinal = oracionesCorrectas;
+            
+            const nombre = document.getElementById('nombre').value.trim();
+            const apellido = document.getElementById('apellido').value.trim();
+
+            // Mostrar resultados
+            document.getElementById('contadorPalabras').innerHTML =
+                `<span class="text-primary">Oraciones correctas: ${oracionesCorrectas}/10</span> | 
+                 <span class="text-info">Puntuación: ${puntuacionFinal}</span>`;
+
+            document.getElementById('resultado').innerHTML =
+                `<div class="alert ${puntuacionFinal >= 7 ? 'alert-success' : puntuacionFinal >= 4 ? 'alert-warning' : 'alert-danger'}">
+                    <h4>Resultado para ${nombre} ${apellido}</h4>
+                    <p>Has escrito correctamente ${oracionesCorrectas} de 10 oraciones.</p>
+                    <p>Puntuación final: ${puntuacionFinal}</p>
+                    <p class="small">* Se aceptan pequeños errores como faltas de acento o espacios</p>
+                </div>`;
+
+            document.getElementById('textoUsuario').readOnly = true;
+            mostrarFeedback(resultados);
+
+            const guardado = await guardarEnHoja(oracionesCorrectas, puntuacionFinal);
+            if (guardado) {
+                console.log("Datos guardados correctamente.");
+            } else {
+                console.log("Hubo un error al guardar los datos.");
+            }
+        }
+    </script>
+</body>
+</html>
