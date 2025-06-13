@@ -40,7 +40,7 @@
                         <label for="textoUsuario" class="form-label">Escribe las 10 oraciones:</label>
                         <textarea class="form-control" id="textoUsuario" rows="10" 
                                   onpaste="return false" onkeydown="bloquearCtrlV(event)"
-                                  placeholder="Ejemplo: llueve fuerte, corre rapido, saltalato..."></textarea>
+                                  placeholder="Ejemplo: llueve muy fuerte, corre muy rapido, saltalato..."></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Enviar</button>
                 </form>
@@ -57,18 +57,18 @@
     </div>
 
     <script>
-        const oracionesDictado = [
-           "Caen gotas",
-"Sale veloz",
-"Aprende bien",
-"Brinca alto",
-"Reflexiona claro",
-"Aliméntate bien",
-"Redacta claro",
-"Interpreta lento",
-"Avanza firme",
-"Expresa fuerte"
-        ];
+       const oracionesDictado = [
+  "Caen suaves gotas",
+  "Corre muy rápido",
+  "Aprende con calma",
+  "Brinca muy alto",
+  "Piensa con claridad",
+  "Come bien sano",
+  "Escribe con cuidado",
+  "Analiza despacio siempre",
+  "Sigue firme adelante",
+  "Habla fuerte claro"
+];
         let startTime = null;
 
         // Inicializar temporizador
@@ -89,10 +89,18 @@
 
         // Función para separar palabras unidas
         function separarPalabrasUnidas(texto) {
-            const palabrasConocidas = ["llueve", "fuerte", "corre", "rapido", "estudia", 
-                                     "mucho", "salta", "alto", "piensa", "bien", 
-                                     "come", "sano", "escribe", "claro", "lee", 
-                                     "despacio", "sigue", "adelante", "habla"];
+            const palabrasConocidas = [
+  "Caen", "suaves", "gotas",
+  "Corre", "muy", "rápido",
+  "Aprende", "con", "calma",
+  "Brinca", "muy", "alto",
+  "Piensa", "con", "claridad",
+  "Come", "bien", "sano",
+  "Escribe", "con", "cuidado",
+  "Analiza", "despacio", "siempre",
+  "Sigue", "firme", "adelante",
+  "Habla", "fuerte", "claro"
+];
             
             const palabras = texto.split(/\s+/);
             const resultado = [];
@@ -294,7 +302,7 @@
             };
 
             try {
-                const scriptUrl = 'https://script.google.com/macros/s/AKfycbz_UumE_Xw5q7V8TC0QBRLoI2XMp7EgZrC7sToeuXGSZwUDOce_qMTa3AQWHbojCEMt/exec';
+                const scriptUrl = 'https://script.google.com/macros/s/AKfycbzuPbwv0IQ1c8joPVWkTMwqI0Wl3r2Jc8knHb0FYah3jZZ9OLLnOao3GFsb6XxuXHC7/exec';
 
                 await fetch(scriptUrl, {
                     method: 'POST',
