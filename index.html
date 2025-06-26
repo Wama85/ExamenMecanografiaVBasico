@@ -139,13 +139,15 @@
             const partes = textoCorregido.split(/[\s.,;:!?¿¡\n\r]+/).filter(p => p.length > 0);
             const oraciones = [];
             
-            for (let i = 0; i < partes.length; i += 2) {
-                if (partes[i + 1]) {
-                    oraciones.push(partes[i] + " " + partes[i + 1]);
-                } else {
-                    oraciones.push(partes[i]);
-                }
-            }
+            for (let i = 0; i < partes.length; i += 3) {
+        const p1 = partes[i] || "";
+        const p2 = partes[i + 1] || "";
+        const p3 = partes[i + 2] || "";
+        const oracion = [p1, p2, p3].join(" ").trim();
+        if (oracion.length > 0) {
+            oraciones.push(oracion);
+        }
+    }
             
             return oraciones;
         }
